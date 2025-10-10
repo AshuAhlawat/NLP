@@ -4,3 +4,7 @@
 
 # Encodings (tiktoken)
 - gpt-2
+
+
+# TODO
+- do all attention mechanisms
