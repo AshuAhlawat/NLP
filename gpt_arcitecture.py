@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn.functional import cross_entropy
+from torch.utils.data import Dataset
 
 if torch.cuda.is_available():
     torch.set_default_device("cuda")
@@ -14,7 +15,24 @@ GPT_CONFIG_124M = {
     "drop_rate": 0.1,       # Dropout rate
     "qkv_bias": False       # Query-Key-Value bias
 }
+class GPTDataset(Dataset):
+    def __init__(self, txt, tokenizer, max_length, stride):
+        self.input_ids = []
+        self.target_ids = []
+        
+        token_ids = tokenizer.encode(txt, allowed_special= {"<|endoftext|>",})
+        
+        for i in range(0, len(token_ids) - max_length, stride):
+            input_chunk = token_ids[i:i + max_length]
+            target_chunk = token_ids[i + 1: i + max_length + 1]
+            self.input_ids.append(torch.tensor(input_chunk))
+            self.target_ids.append(torch.tensor(target_chunk))
 
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, idx):
+        return self.input_ids[idx], self.target_ids[idx]
 
 class LayerNorm(nn.Module):
     def __init__(self, embedding_dim, eps=1e-5):
@@ -129,12 +147,11 @@ class TransformerBlock(nn.Module):
         return out
 
 class GPTModel(nn.Module):
-    def __init__(self, config, batch_size):
+    def __init__(self, config):
         super().__init__()
         self.tok_emb = nn.Embedding(config["vocab_size"], config["emb_dim"])
         self.pos_emb = nn.Embedding(config["context_length"], config["emb_dim"])
         self.drop_emb = nn.Dropout(config["drop_rate"])
-        self.batch_size = batch_size
 
         self.trf_blocks = nn.Sequential(
             *[TransformerBlock(config) for _ in range(config["n_layers"])]
@@ -144,12 +161,15 @@ class GPTModel(nn.Module):
         self.out_head = nn.Linear(config["emb_dim"], config["vocab_size"], bias=False)
 
     def forward(self, in_idx):
-        in_idx = torch.tensor(in_idx)
+        in_idx = torch.tensor(in_idx, dtype = int)
+        in_idx = in_idx.reshape(-1,in_idx.shape[-1])
+        batch_size, seq_len = in_idx.shape
+
         tok_embeds = self.tok_emb(in_idx)
-        pos_embeds = self.pos_emb(torch.arange(len(in_idx), device=in_idx.device))
+        pos_embeds = self.pos_emb(torch.arange(seq_len, device=in_idx.device))
 
         x = tok_embeds + pos_embeds
-        x = torch.reshape(x, shape = (-1 , min(self.batch_size, len(in_idx)), GPT_CONFIG_124M["emb_dim"]))
+        # x = torch.reshape(x, shape = (-1 , min(self.batch_size, len(in_idx)), GPT_CONFIG_124M["emb_dim"]))
         x = self.drop_emb(x)
         x = self.trf_blocks(x)
         x = self.final_norm(x)
