@@ -1,7 +1,7 @@
-import torch
-import torch.nn as nn
-from torch.nn.functional import cross_entropy
-from torch.utils.data import Dataset
+import torch # type: ignore
+import torch.nn as nn # type: ignore
+from torch.nn.functional import cross_entropy # type: ignore
+from torch.utils.data import Dataset # type: ignore
 
 import math
 import os
@@ -259,7 +259,7 @@ def load_params(model, params):
     model.final_norm.scale = assign(model.final_norm.scale, params["g"])
     model.final_norm.shift = assign(model.final_norm.shift, params["b"])
 
-def generate(model, sentence, max_new_tokens=20, context_size=1024, temperature=1.0, top_k=None, eos_id="<|endoftext|>"):
+def generate(model, sentence, max_new_tokens=20, context_size=1024, temperature=1.0, top_k=None, eos_id=50246):
     model.eval()
     tokens = tokenizer.encode(sentence)
     # For-loop is the same as before: Get logits, and only focus on last time step
